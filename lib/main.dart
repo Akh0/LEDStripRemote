@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:easy_debounce/easy_debounce.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 extension on Color {
-  String toHex() =>
-      '${red.toRadixString(16).padLeft(2, '0')}'
+  String toHex() => '${red.toRadixString(16).padLeft(2, '0')}'
       '${green.toRadixString(16).padLeft(2, '0')}'
       '${blue.toRadixString(16).padLeft(2, '0')}';
 }
@@ -36,11 +33,8 @@ Future<http.Response> updateLEDRequest(String color, int brightness) {
 }
 
 void updateLED(Color color, double brightness) {
-  EasyDebounce.debounce(
-      'update-led-debouncer',
-      const Duration(milliseconds: 5),
-          () => updateLEDRequest(color.toHex(), brightness.round())
-  );
+  EasyDebounce.debounce('update-led-debouncer', const Duration(milliseconds: 5),
+      () => updateLEDRequest(color.toHex(), brightness.round()));
 }
 
 class _MyAppState extends State<MyApp> {
@@ -77,49 +71,53 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      theme: ThemeData.dark(),
       title: 'LED Strip Remote',
       home: Scaffold(
-        appBar: AppBar(
-          title: const Text('LED Strip Remote'),
-        ),
-        body: Scaffold(
-          body: Container(
-            child: Column(
-              children: [
-                ColorPicker(
-                  pickerColor: _currentColor,
-                  onColorChanged: changeColor,
-                  colorPickerWidth: 330.0,
-                  pickerAreaHeightPercent: 0.8,
-                  enableAlpha: false,
-                  showLabel: false,
-                  displayThumbColor: true,
-                  pickerAreaBorderRadius: const BorderRadius.all(Radius.circular(8))
-                ),
-                Tex
-                Slider(
-                  value: _currentBrightness,
-                  onChanged: changeBrightness,
-                  min: 0,
-                  max: 100,
-                  divisions: 20,
-                  label: _currentBrightness.round().toString(),
-                ),
-                Switch(
-                  value: _currentOn,
-                  onChanged: turnOnOff,
-                )
-              ]
-            )
-          )
-        )
-      ),
+          appBar: AppBar(
+            title: const Text('LED Strip Remote'),
+          ),
+          body: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ColorPicker(
+                        pickerColor: _currentColor,
+                        onColorChanged: changeColor,
+                        colorPickerWidth: 330.0,
+                        pickerAreaHeightPercent: 0.8,
+                        enableAlpha: false,
+                        showLabel: false,
+                        displayThumbColor: true,
+                        pickerAreaBorderRadius:
+                            const BorderRadius.all(Radius.circular(8))),
+                    const SizedBox(
+                      height: 6,
+                    ),
+                    const Text(
+                      'Luminosité',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Slider(
+                      value: _currentBrightness,
+                      onChanged: changeBrightness,
+                      min: 5,
+                      max: 100,
+                      divisions: 19,
+                      label: _currentBrightness.round().toString(),
+                    ),
+                    const Spacer(),
+                    SwitchListTile(
+                      title: const Text('Allumer / Éteindre',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(_currentOn
+                          ? 'Le ruban LED est allumé'
+                          : 'Le ruban LED est éteint'),
+                      value: _currentOn,
+                      onChanged: turnOnOff,
+                    )
+                  ]))),
     );
   }
-}
-
-class UpperCaseTextFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(_, TextEditingValue nv) =>
-      TextEditingValue(text: nv.text.toUpperCase(), selection: nv.selection);
 }
