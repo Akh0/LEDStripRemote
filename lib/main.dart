@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:developer';
+
 import 'package:easy_debounce/easy_debounce.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:http/http.dart' as http;
 
 extension on Color {
   String toHex() => '${red.toRadixString(16).padLeft(2, '0')}'
@@ -11,15 +13,18 @@ extension on Color {
 }
 
 void main() {
-  runApp(MaterialApp(home: MyApp()));
+  runApp(MyApp());
 }
 
 class MyApp extends StatefulWidget {
+  const MyApp({Key? key}) : super(key: key);
+
   @override
   State<StatefulWidget> createState() => _MyAppState();
 }
 
-Future<http.Response> updateLEDRequest(String color, int brightness) {
+Future<http.Response> updateLEDRequest(
+    String? color, int brightness, String? animation) {
   return http.post(
     Uri.parse('http://192.168.1.15:8888/set'),
     headers: <String, String>{
@@ -28,49 +33,87 @@ Future<http.Response> updateLEDRequest(String color, int brightness) {
     body: jsonEncode({
       'color': color,
       'brightness': brightness,
+      'animation': animation,
     }),
   );
 }
 
-void updateLED(Color color, double brightness) {
+void updateLED(Color? color, double brightness, String? animation) {
   EasyDebounce.debounce('update-led-debouncer', const Duration(milliseconds: 5),
-      () => updateLEDRequest(color.toHex(), brightness.round()));
+      () => updateLEDRequest(color?.toHex(), brightness.round(), animation));
 }
 
 class _MyAppState extends State<MyApp> {
   Color _currentColor = Colors.white;
   double _currentBrightness = 100;
+  String? _currentAnimation;
+  Map<String, dynamic> _animations = {};
   bool _currentOn = true;
+
+  void loadAnimations() async {
+    final response = await http.get(
+        Uri.parse('http://192.168.1.15:8888/animations'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        });
+
+    if (response.statusCode == 200) {
+      log(response.body);
+      setState(() => _animations = jsonDecode(response.body));
+    }
+  }
 
   void turnOnOff(on) {
     setState(() => _currentOn = on);
 
     if (on) {
-      updateLED(_currentColor, _currentBrightness);
+      updateLED(_currentColor, _currentBrightness, _currentAnimation);
     } else {
-      updateLED(Colors.black, 0);
+      updateLED(Colors.black, 0, null);
     }
   }
 
   void changeColor(Color color) {
-    setState(() => _currentColor = color);
+    setState(() {
+      _currentColor = color;
+      _currentAnimation = null;
+    });
 
     if (_currentOn) {
-      updateLED(color, _currentBrightness);
+      updateLED(color, _currentBrightness, _currentAnimation);
     }
   }
 
   void changeBrightness(double brightness) {
-    setState(() => _currentBrightness = brightness);
+    setState(() {
+      _currentBrightness = brightness;
+    });
 
     if (_currentOn) {
-      updateLED(_currentColor, brightness);
+      updateLED(_currentAnimation == null ? _currentColor : null, brightness,
+          _currentAnimation);
     }
+  }
+
+  void changeAnimation(String? animation) {
+    setState(() => _currentAnimation = animation);
+
+    if (_currentOn) {
+      updateLED(_currentColor, _currentBrightness, _currentAnimation);
+    }
+  }
+
+  @override
+  void initState() {
+    loadAnimations();
+
+    super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
       title: 'LED Strip Remote',
       home: Scaffold(
@@ -97,7 +140,8 @@ class _MyAppState extends State<MyApp> {
                     ),
                     const Text(
                       'Luminosité',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     Slider(
                       value: _currentBrightness,
@@ -107,10 +151,38 @@ class _MyAppState extends State<MyApp> {
                       divisions: 19,
                       label: _currentBrightness.round().toString(),
                     ),
+                    const SizedBox(
+                      height: 10,
+                    ),
+                    DropdownButtonFormField(
+                      value: _currentAnimation,
+                      icon: _animations.isEmpty
+                          ? const SizedBox(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                              height: 20,
+                              width: 20)
+                          : const Icon(Icons.arrow_downward),
+                      // iconSize: 30,
+                      hint: Text(_animations.isEmpty
+                          ? 'Chargement des animations…'
+                          : 'Animations'),
+                      onChanged: _animations.isEmpty ? null : changeAnimation,
+                      items: _animations.entries
+                          .map<DropdownMenuItem<String>>(
+                              (MapEntry<String, dynamic> e) =>
+                                  DropdownMenuItem<String>(
+                                    value: e.key,
+                                    child: Text(e.value),
+                                  ))
+                          .toList(),
+                    ),
                     const Spacer(),
                     SwitchListTile(
                       title: const Text('Allumer / Éteindre',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16)),
                       subtitle: Text(_currentOn
                           ? 'Le ruban LED est allumé'
                           : 'Le ruban LED est éteint'),
